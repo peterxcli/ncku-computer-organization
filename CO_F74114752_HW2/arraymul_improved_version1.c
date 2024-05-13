@@ -1,5 +1,5 @@
 "improved_loop:;"
-  "vsetivli t0, 8, e16;"
+  "vsetvli t0, %[arr_size], e16;"
 
   "vle16.v v1, (%[x]);"
   "vle16.v v2, (%[h]);"
