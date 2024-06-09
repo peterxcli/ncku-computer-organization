@@ -4,6 +4,8 @@
 #define _RISCV_CACHE_SIM_H
 
 #include "memtracer.h"
+#include <queue>
+#include <vector>
 #include "common.h"
 #include <cstring>
 #include <string>
@@ -38,6 +40,8 @@ class cache_sim_t
  protected:
   static const uint64_t VALID = 1ULL << 63;
   static const uint64_t DIRTY = 1ULL << 62;
+
+  std::vector<std::queue<size_t>> fifo_queues;
 
   virtual uint64_t* check_tag(uint64_t addr);
   virtual uint64_t victimize(uint64_t addr);

@@ -58,6 +58,7 @@ void cache_sim_t::init()
   writebacks = 0;
 
   miss_handler = NULL;
+  fifo_queues.resize(sets);
 }
 
 cache_sim_t::cache_sim_t(const cache_sim_t& rhs)
@@ -97,24 +98,36 @@ void cache_sim_t::print_stats()
   std::cout << "Miss Rate:             " << mr << '%' << std::endl;
 }
 
-uint64_t* cache_sim_t::check_tag(uint64_t addr)
-{
-  size_t idx = (addr >> idx_shift) & (sets-1);
+uint64_t* cache_sim_t::check_tag(uint64_t addr) {
+  size_t idx = (addr >> idx_shift) & (sets - 1);
   size_t tag = (addr >> idx_shift) | VALID;
 
-  for (size_t i = 0; i < ways; i++)
-    if (tag == (tags[idx*ways + i] & ~DIRTY))
-      return &tags[idx*ways + i];
+  for (size_t i = 0; i < ways; i++) {
+    if (tag == (tags[idx * ways + i] & ~DIRTY)) {
+      // On hit, no need to modify FIFO queue
+      return &tags[idx * ways + i];
+    }
+  }
 
+  // On miss, handle in victimize which updates FIFO queue
   return NULL;
 }
 
-uint64_t cache_sim_t::victimize(uint64_t addr)
-{
-  size_t idx = (addr >> idx_shift) & (sets-1);
-  size_t way = lfsr.next() % ways;
-  uint64_t victim = tags[idx*ways + way];
-  tags[idx*ways + way] = (addr >> idx_shift) | VALID;
+uint64_t cache_sim_t::victimize(uint64_t addr) {
+  size_t idx = (addr >> idx_shift) & (sets - 1);
+  if (fifo_queues[idx].empty()) {
+    for (size_t i = 0; i < ways; ++i)
+      fifo_queues[idx].push(i);
+  }
+
+  size_t way = fifo_queues[idx].front();
+  fifo_queues[idx].pop();  // Remove the oldest element
+
+  uint64_t victim = tags[idx * ways + way];
+  tags[idx * ways + way] = (addr >> idx_shift) | VALID;
+
+  fifo_queues[idx].push(way);  // Insert as the newest element
+
   return victim;
 }
 
