@@ -19,7 +19,7 @@
 // 32: 1.2057418542534164
  
 void matrix_multiplication(int *a, int *b, int *output, int i, int k, int j) {
-    int block_size = 10;  // Choose an appropriate block size
+    int block_size = 10;
 
     for (int x = 0; x < i; x += block_size) {
         for (int y = 0; y < j; y += block_size) {
