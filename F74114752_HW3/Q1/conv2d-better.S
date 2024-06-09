@@ -8,73 +8,70 @@ conv2d:
 # a5: s
 
 prologue:
-    addi sp, sp, -20  # Allocate stack space for saved registers
-    sw ra, 0(sp)      # Save return address
-    sw s0, 4(sp)      # Save frame pointer
-    sw s1, 8(sp)      # Save additional register s1
-    sw s2, 12(sp)     # Save additional register s2
-    sw s3, 16(sp)     # Save additional register s3
-    addi s0, sp, 20   # Set frame pointer
+    addi sp, sp, -4
+    sw a0, 0(sp)
 
-    # Initialize registers for bounds of loops
-    sub s1, a2, a4    # s1 = w - ksize
-    sub s2, a3, a4    # s2 = h - ksize
+# Loop over output height (i)
+    sub t0, a2, a4       # t0 = h - ksize
+    sub t1, a3, a4       # t1 = w - ksize
+    li  t2, 0            # i = 0
+loop_output_height:
+    li  t3, 0            # j = 0
 
-    # Initialize outer loop counter (i)
-    addi t0, zero, 0  # i = 0
-outer_loop:
-    # Calculate address of row start in input array
-    mul t1, t0, a2    # t1 = i * w
-    slli t1, t1, 2    # Convert to byte offset
-    add t1, t1, a0    # t1 = address of input[i * w]
+    # Loop over output width (i)
+    loop_output_width:
+        li  t4, 0            # sum = 0
+        li  t5, 0            # n = 0
 
-    # Initialize inner loop counter (j)
-    addi t2, zero, 0  # j = 0
-	inner_loop:
-		li t3, 0          # sum = 0
+        # Loop over kernel height (m)
+        loop_kernel_height:
+            li  t6, 0            # m = 0
 
-		# Kernel application loops (over n and m)
-		addi t4, zero, 0  # n = 0
-		kernel_row_loop:
-			addi t5, zero, 0  # m = 0
-			kernel_col_loop:
-					add t6, t0, t5    # t6 = i + m
-					mul t6, t6, a2    # t6 = (i + m) * w
-					add t6, t6, t2    # t6 = (i + m) * w + j
-					add t6, t6, t4    # t6 = (i + m) * w + j + n
-					slli t6, t6, 2    # Convert to byte offset
-					add t6, a0, t6    # t6 = address of input[(i + m) * w + j + n]
-					lw s3, 0(t6)      # Load input element
+            # Loop over kernel width (n)
+            loop_kernel_width:
+                # Calculate addresses and load values
+                add a6, t2, t6       # a6 = i + m
+                mul a6, a6, a2       # a6 = (i + m) * w
+                add a6, a6, t3       # a6 = (i + m) * w + j
+                add a6, a6, t5       # a6 = (i + m) * w + j + n
+                slli a6, a6, 2       # a6 = ((i + m) * w + j + n) * 4
+                add a6, a6, a0       # a6 = address of input[(i + m) * w + j + n]
+                lw  a6, 0(a6)        # load input[(i + m) * w + j + n]
 
-					mul s3, t5, a4    # Calculate kernel index (m * ksize)
-					add s3, s3, t4    # Adjust for kernel row (n)
-					slli s3, s3, 2    # Convert to byte offset
-					add s3, a1, s3    # Address of kernel[m * ksize + n]
-					lw s3, 0(s3)      # Load kernel element
+                mul a7, a4, t6       # a7 = m * ksize
+                add a7, a7, t5       # a7 = m * ksize + n
+                slli a7, a7, 2       # a7 = (m * ksize + n) * 4
+                add a7, a7, a1       # a7 = address of kernel[m * ksize + n]
+                lw  a7, 0(a7)        # load kernel[m * ksize + n]
 
-					mul s3, s3, s3    # input * kernel
-					add t3, t3, s3    # Accumulate in sum
+                # Multiply and accumulate
+                mul a6, a7, a6       # a6 = input[] * kernel[]
+                add t4, t4, a6       # sum += input * kernel
 
-					addi t5, t5, 1    # Increment m
-					blt t5, a4, kernel_col_loop # Loop over m
+                # Increment kernel width (n)
+                add t6, t6, a5
+                blt t6, a4, loop_kernel_width       # if n < ksize, repeat
 
-			addi t4, t4, 1       # Increment n
-			blt t4, a4, kernel_row_loop # Loop over n
+            # Increment kernel height (m)
+            add t5, t5, a5
+            blt t5, a4, loop_kernel_height       # if m < ksize, repeat
 
-			sw t3, 0(t1)          # Store result in input[i * w + j]
+        # Store the result in the input array
+        mul a6, t2, a2       # a6 = i * w
+        add a6, a6, t3       # a6 = i * w + j
+        slli a6, a6, 2       # a6 = (i * w + j) * 4
+        add a6, a0, a6       # a6 = address of input[i * w + j]
+        sw  t4, 0(a6)        # input[i * w + j] = sum
 
-			addi t2, t2, 1        # Increment j
-			addi t1, t1, 4        # Move to next output element
-			ble t2, s1, inner_loop # Loop over j
+        # Increment output width (j)
+        addi t3, t3, 1
+        ble t3, t1, loop_output_width       # if i < w - ksize, repeat
 
-		addi t0, t0, 1        # Increment i
-		ble t0, s2, outer_loop # Loop over i
+    # Increment output height (i)
+    addi t2, t2, 1
+    ble t2, t0, loop_output_height       # if i < h - ksize, repeat
 
-epilogue: # Restore registers and return
-    lw ra, 0(sp)          # Restore return address
-    lw s0, 4(sp)          # Restore frame pointer
-    lw s1, 8(sp)          # Restore s1
-    lw s2, 12(sp)         # Restore s2
-    lw s3, 16(sp)         # Restore s3
-    addi sp, sp, 20       # Deallocate stack space
-    ret                   # Return from function
+epilogue:
+    lw a0, 0(sp)
+    addi sp, sp, 4
+    ret
