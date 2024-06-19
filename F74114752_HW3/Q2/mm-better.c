@@ -17,7 +17,8 @@
 // 17: 1.4877620312702484
 // 20: 1.4868997967109583
 // 32: 1.2057418542534164
- 
+
+// https://hackmd.io/@shaoeChen/BJH0QuJQI#Block-Multiplication1
 void matrix_multiplication(int *a, int *b, int *output, int i, int k, int j) {
     int block_size = 10;
 
