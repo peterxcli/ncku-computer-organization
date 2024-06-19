@@ -114,22 +114,36 @@ uint64_t* cache_sim_t::check_tag(uint64_t addr) {
 }
 
 uint64_t cache_sim_t::victimize(uint64_t addr) {
-  size_t idx = (addr >> idx_shift) & (sets - 1);
+  // Calculate the cache index
+  size_t idx = (addr >> idx_shift) & (sets - 1); // Shifts address and masks to get the set index, remove the `offset` bits, then `idx = cache index without tag + tag`
+
+  // Check if the FIFO queue for this index is empty
+  // TODO: This is a bug, the FIFO queue should be initialized only once
   if (fifo_queues[idx].empty()) {
-    for (size_t i = 0; i < ways; ++i)
-      fifo_queues[idx].push(i);
+    // Initialize the FIFO queue with all possible ways
+    for (size_t i = 0; i < ways; ++i) // The way is `i = the offset of blocks in the cache line`
+      fifo_queues[idx].push(i); // Insert remainder of division as the newest element
   }
 
-  size_t way = fifo_queues[idx].front();
-  fifo_queues[idx].pop();  // Remove the oldest element
+  // Select the victim way
+  size_t way = fifo_queues[idx].front(); // Retrieves the oldest element (victim), the way is `way = the offset of blocks in the cache line`
+  fifo_queues[idx].pop(); // Removes the oldest element from the queue
 
-  uint64_t victim = tags[idx * ways + way];
-  tags[idx * ways + way] = (addr >> idx_shift) | VALID;
+  uint64_t cache_tag_idx = idx * ways + way;// Calculate the index of the cache line in the tags array, the way is `way = the offset of blocks in the cache line`, 因為 cache 是以 block 為單位, 所以要乘上 ways
 
-  fifo_queues[idx].push(way);  // Insert as the newest element
+  // Retrieve the tag of the victim cache line
+  uint64_t victim = tags[cache_tag_idx];
 
+  // Update the tag array with the new address's tag, set the valid bit
+  tags[cache_tag_idx] = (addr >> idx_shift) | VALID;
+
+  // Add the recently used way back to the end of the FIFO queue
+  fifo_queues[idx].push(way); // Insert as the newest element
+
+  // Return the address of the evicted cache line
   return victim;
 }
+
 
 void cache_sim_t::access(uint64_t addr, size_t bytes, bool store)
 {

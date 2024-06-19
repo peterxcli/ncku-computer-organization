@@ -49,10 +49,10 @@ class cache_sim_t
   lfsr_t lfsr;
   cache_sim_t* miss_handler;
 
-  size_t sets;
-  size_t ways;
-  size_t linesz;
-  size_t idx_shift;
+  size_t sets; // 代表幾條 cache entries
+  size_t ways; // 代表一條 entry 有幾個 block
+  size_t linesz; // 代表 block size
+  size_t idx_shift; // idx_shift = log2(linesz), initialized in init() function, 也等於 Address 裡面 offset 有多少個 bit
 
   uint64_t* tags;
   
